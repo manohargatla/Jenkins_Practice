@@ -151,4 +151,178 @@ sudo apt-get install jenkins -y
 ![preview](images/jnks27.png)
 ![preview](images/jnks28.png)
 ![preview](images/jnks29.png)
+# Node configuration
+* Select Manage jenkins => Creadentials => Add global
+![preview](images/jnks35.png)
+* Select Manage jenkins => Nodes & clouds => New agent
+![preview](images/jnks32.png)
+![preview](images/jnks33.png)
+![preview](images/jnks34.png)
+![preview](images/jnks36.png)
+![preview](images/jnks37.png)
+# Free Style projects
+# Game-of-life
+* Lets Create a Free style project of Game-of-life Project
+![preview](images/jnks39.png)
+![preview](images/jnks40.png)
+* Lets do global tool configuration for Maven & Java
+![preview](images/jnks41.png)
+![preview](images/jnks42.png)
+* Create a freestyle with below steps
+![preview](images/jnks43.png)
+![preview](images/jnks44.png)
+![preview](images/jnks45.png)
+![preview](images/jnks46.png)
+![preview](images/jnks47.png)
+# Maevn Project for JFROG
+* Create a JFROG free Trial account from below steps
+![preview](images/jnks48.png)
+![preview](images/jnks49.png)
+![preview](images/jnks50.png)
+* After successfull creation of account Create a user, Group and Access Token
+![preview](images/jnks51.png) 
+![preview](images/jnks52.png)
+![preview](images/jnks53.png) 
+# Setting up JFROG in Jenkins 
+* Open jenkins server and Install the required plugin for jfrog
+* To install plugins Go to Manage jenkins -> Plugins -> click on available plugins and Search for **Artifactory Plugin** and Install
+![preview](images/jnks54.png)
+* Adding Jfrog Credentials to the jenkins Manage jenkins -> Credentials -> select kind as a secret text
+![preview](images/jnks55.png)
+* Configure the JFROG to jenkins from Manage jenkins -> System -> select for JFROG Fill the required details and test the connection from there it self by selecting 'Test connection'
+![preview](images/jnks56.png)
+* After configuration, Create a Repository in JFROG cloud 
+* Click on create repo and select required package 'MAVEN' and create
+![preview](images/jnks57.png)
+![preview](images/jnks58.png)
+* Now Create a Free style MAVEN project for spring petclinic by following
+![preview](images/jnks59.png)
+![preview](images/jnks66.png)
+![preview](images/jnks67.png)
+![preview](images/jnks68.png)
+![preview](images/jnks69.png)
+![preview](images/jnks70.png)
+* Write a Declarative pipeline to publish artifacts to JFROG cloud 
+```Jenkinsfile
+pipeline {
+    agent { label 'Jenkins_one' }
+    triggers { pollSCM ('* * * * *') }
+    tools {
+        jdk 'JDK_17'
+        maven 'MAVEN_HOME'
+    }
+    stages {
+        stage('source code') {
+            steps {
+                git url: 'https://github.com/spring-projects/spring-petclinic.git',
+                    branch: 'main'
+            }
+        }
+        stage('Artifactory configuration') {
+            steps {
+                rtServer (
+                    id: "MY_JFROG_CLOUD",
+                    url: 'https://qtdevopps.jfrog.io/artifactory',
+                    credentialsId: 'JFROG_ACCESS'
+                )
+                rtMavenDeployer (
+                    id: "SPC_DEPLOYER",
+                    serverId: "MY_JFROG_CLOUD",
+                    releaseRepo: 'manu-app-libs-release',
+                    snapshotRepo: 'manu-app-libs-snapshot'
+                )
+            }
+        }
+        stage('build package') {
+            steps {
+                rtMavenRun (
+                    tool: 'MAVEN_HOME',
+                    pom: 'pom.xml',
+                    goals: 'clean install',
+                    deployerId: "SPC_DEPLOYER"
+                )
+                rtPublishBuildInfo (
+                    serverId: "MY_JFROG_CLOUD"
+                )
+            }
+        }
+    }
+}
+```
+![preview](images/jnks71.png)
+![preview](images/jnks72.png)
+# SonarQube scanner for Static Code Analysis
+* Create a SonarQube/Cloud account with gmail or github account
+* Create an organization and project for static code analysis
+![preview](images/jnks61.png)
+* To configure the sonar cloud to jenkins Generate a token in sonar cloud from below steps
+![preview](images/jnks62.png)
+* Download the **SonarQube Scanner** plugin from manage jenkins => Plugins => available plugins.
+![preview](images/jnks63.png)
+* After that add credentials to jenkins server and configure the Sonar cloud in manage jenkins => system
+![preview](images/jnks64.png)
+![preview](images/jnks65.png)
+* Write a pipeline steps for static code analysis 
+```
+pipeline {
+    agent { label 'Jenkins_one' }
+    triggers { pollSCM ('* * * * *') }
+    tools {
+        jdk 'JDK_17'
+        maven 'MAVEN_HOME'
+    }
+    stages {
+        stage('source code') {
+            steps {
+                git url: 'https://github.com/spring-projects/spring-petclinic.git',
+                    branch: 'main'
+            }
+        }
+        stage('Artifactory configuration') {
+            steps {
+                rtServer (
+                    id: "MY_JFROG_CLOUD",
+                    url: 'https://qtdevopps.jfrog.io/artifactory',
+                    credentialsId: 'JFROG_ACCESS'
+                )
+                rtMavenDeployer (
+                    id: "SPC_DEPLOYER",
+                    serverId: "MY_JFROG_CLOUD",
+                    releaseRepo: 'manu-app-libs-release',
+                    snapshotRepo: 'manu-app-libs-snapshot'
+                )
+            }
+        }
+        stage('build package') {
+            steps {
+                rtMavenRun (
+                    tool: 'MAVEN_HOME',
+                    pom: 'pom.xml',
+                    goals: 'clean install',
+                    deployerId: "SPC_DEPLOYER"
+                )
+                rtPublishBuildInfo (
+                    serverId: "MY_JFROG_CLOUD"
+                )
+            }
+        }
+        stage('static code analysis') {
+            steps {
+                // performing sonarqube analysis with "withSonarQubeENV(<Name of Server configured in Jenkins>)"
+                withSonarQubeEnv('SONAR_CLOUD') {
+                    sh 'mvn clean package sonar:sonar -Dsonar.organization=spring-app \
+                        -Dsonar.token=632633c374ac9c0b5c164dd9c1b79aa623cd0b6f \
+                        -Dsonar.host.url=https://sonarcloud.io \
+                        -Dsonar.projectKey=spring-app_springpetclinic'
+                }
+            }
+        }
+    }
+}
+```
+* Build the project
+![preview](images/jnks73.png)
+![preview](images/jnks74.png)
+
+
 
