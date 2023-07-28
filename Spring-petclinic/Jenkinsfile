@@ -1,0 +1,55 @@
+pipeline {
+    agent { label 'Jenkins_one' }
+    triggers { pollSCM ('* * * * *') }
+    tools {
+        jdk 'JDK_17'
+        maven 'MAVEN_HOME'
+    }
+    stages {
+        stage('source code') {
+            steps {
+                git url: 'https://github.com/spring-projects/spring-petclinic.git',
+                    branch: 'main'
+            }
+        }
+        stage('Artifactory configuration') {
+            steps {
+                rtServer (
+                    id: "MY_JFROG_CLOUD",
+                    url: 'https://qtdevopps.jfrog.io/artifactory',
+                    credentialsId: 'JFROG_ACCESS'
+                )
+                rtMavenDeployer (
+                    id: "SPC_DEPLOYER",
+                    serverId: "MY_JFROG_CLOUD",
+                    releaseRepo: 'manu-app-libs-release',
+                    snapshotRepo: 'manu-app-libs-snapshot'
+                )
+            }
+        }
+        stage('build package') {
+            steps {
+                rtMavenRun (
+                    tool: 'MAVEN_HOME',
+                    pom: 'pom.xml',
+                    goals: 'clean install',
+                    deployerId: "SPC_DEPLOYER"
+                )
+                rtPublishBuildInfo (
+                    serverId: "MY_JFROG_CLOUD"
+                )
+            }
+        }
+        stage('static code analysis') {
+            steps {
+                // performing sonarqube analysis with "withSonarQubeENV(<Name of Server configured in Jenkins>)"
+                withSonarQubeEnv('SONAR_CLOUD') {
+                    sh 'mvn clean package sonar:sonar -Dsonar.organization=spring-app \
+                        -Dsonar.token=632633c374ac9c0b5c164dd9c1b79aa623cd0b6f \
+                        -Dsonar.host.url=https://sonarcloud.io \
+                        -Dsonar.projectKey=spring-app_springpetclinic'
+                }
+            }
+        }
+    }
+}

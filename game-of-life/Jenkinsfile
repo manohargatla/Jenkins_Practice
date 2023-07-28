@@ -1,0 +1,22 @@
+pipeline {
+    agent { label 'Jenkins_one' }
+    triggers { pollSCM('* * * * *') }
+    tools {
+        jdk 'JAVA_8'
+    }
+    stages {
+        stage('VCS') {
+            steps {
+                git url: 'https://github.com/SyedSohail123/qtjenkins.git',
+                    branch: 'declarative'
+            }
+        }
+        stage('Build & Package') {
+            steps {
+                sh 'echo $PATH'
+                sh 'java -version'
+                sh 'mvn package'
+            }
+        }
+    }
+}
