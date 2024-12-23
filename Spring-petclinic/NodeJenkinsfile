@@ -1,0 +1,44 @@
+pipeline {
+    agent { label 'JAVA' }
+    tools {
+        jdk 'JAVA_17'
+        nodejs 'NODE'
+    }
+    environment {
+        SONAR_SCANNER_HOME = tool 'SONARQUBE'
+        SONAR_PROJECT_KEY = 'SONARPRO'
+    }
+    stages {
+        stage('Git Checkout') {
+            steps {
+                git branch: 'jenkins', credentialsId: 'GIT', url: 'https://github.com/<org>/<repo>.git' 
+            }
+        }
+        stage('install packages') {
+            steps {
+                script {
+                    sh "git branch"
+                    sh "yarn install"
+                    sh "yarn run build"
+                }
+
+            }
+        }
+        stage('SonarQube Analysis') {
+            steps {
+                withCredentials([string(credentialsId: 'SONAR_TOKEN', variable: 'SONAR_TOKEN')]) {
+                    withSonarQubeEnv('SONAR_URL') {
+                        sh '''
+                        export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64
+                        export PATH=$JAVA_HOME/bin:$PATH
+                        ${SONAR_SCANNER_HOME}/bin/sonar-scanner \
+                        -Dsonar.projectKey=SONARPRO \
+                        -Dsonar.sources=. \
+                        -Dsonar.login=$SONAR_TOKEN
+                        '''
+                    }
+                }
+            }
+        }
+    }
+}
